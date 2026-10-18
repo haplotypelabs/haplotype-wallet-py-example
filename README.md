@@ -129,7 +129,7 @@ claim (refresh responses do include `scope`).
 
 | Scope | What the user sees | Tools |
 |---|---|---|
-| `samples:read` | See your samples and how they were produced | `list_samples`, `get_sample` |
+| `samples:read` | See which genotype files you have and how they were processed | `list_samples`, `get_sample` |
 | `variants:read` | Read your genotype at the positions it asks about | `query_variants` |
 | `scores:read` | Read your polygenic scores and analysis runs | `list_member_pgs_scores`, `list_runs`, `get_run` |
 | `runs:write` | Start new analyses on your genotypes | `schedule_run` |

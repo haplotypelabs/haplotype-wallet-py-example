@@ -14,7 +14,7 @@ DEFAULT_MCP_URL = "https://api.haplotype.ai/mcp"
 """Production MCP endpoint. Also the OAuth `resource` value."""
 
 SCOPE_DESCRIPTIONS = {
-    "samples:read": "See your samples and how they were produced",
+    "samples:read": "See which genotype files you have and how they were processed",
     "variants:read": "Read your genotype at the positions it asks about",
     "scores:read": "Read your polygenic scores and analysis runs",
     "runs:write": "Start new analyses on your genotypes",
