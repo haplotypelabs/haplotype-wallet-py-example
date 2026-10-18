@@ -1,0 +1,161 @@
+name: Update wallet contract
+
+# Fetches the wallet's published connect-contract.json, regenerates
+# src/wallet_example/contract.py from it, and opens or updates one PR from the
+# `contract-update` branch when anything changed. No change, no PR.
+#
+# Haplotype Wallet sends a `wallet-contract-updated` repository_dispatch after a
+# release that changed the contract. The daily run is the fallback.
+
+on:
+  repository_dispatch:
+    types: [wallet-contract-updated]
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
+    inputs:
+      contract_url:
+        description: URL of connect-contract.json
+        required: false
+        default: https://www.haplotype.ai/developers/connect-contract.json
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-contract
+  cancel-in-progress: false
+
+env:
+  DEFAULT_CONTRACT_URL: https://www.haplotype.ai/developers/connect-contract.json
+  BRANCH: contract-update
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Fetch the contract
+        id: fetch
+        env:
+          EVENT: ${{ github.event_name }}
+          DISPATCH_URL: ${{ github.event.client_payload.url }}
+          DISPATCH_SHA256: ${{ github.event.client_payload.sha256 }}
+          INPUT_URL: ${{ inputs.contract_url }}
+        run: |
+          set -euo pipefail
+          case "$EVENT" in
+            repository_dispatch) url="${DISPATCH_URL:-$DEFAULT_CONTRACT_URL}" ;;
+            workflow_dispatch) url="${INPUT_URL:-$DEFAULT_CONTRACT_URL}" ;;
+            *) url="$DEFAULT_CONTRACT_URL" ;;
+          esac
+          if [[ "$url" != https://* ]]; then
+            echo "::error::The contract URL must use https: $url"
+            exit 1
+          fi
+          echo "Fetching $url"
+          file="$RUNNER_TEMP/connect-contract.json"
+          if ! curl --fail --silent --show-error --location --retry 3 --max-time 60 -o "$file" "$url"; then
+            if [ "$EVENT" = schedule ]; then
+              # A 404 (not released yet) or a network blip: skip quietly, tomorrow's run retries.
+              echo "::warning::Could not fetch $url. Skipping this scheduled run."
+              echo "fetched=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::error::Could not fetch $url"
+            exit 1
+          fi
+          sha256=$(sha256sum "$file" | cut -d' ' -f1)
+          if [ -n "${DISPATCH_SHA256:-}" ] && [ "$sha256" != "$DISPATCH_SHA256" ]; then
+            echo "::error::sha256 mismatch for $url: the dispatch says $DISPATCH_SHA256, the file is $sha256"
+            exit 1
+          fi
+          cp "$file" contract/connect-contract.json
+          {
+            echo "fetched=true"
+            echo "url=$url"
+            echo "sha256=$sha256"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: astral-sh/setup-uv@v10.3.0
+        if: steps.fetch.outputs.fetched == 'true'
+
+      - name: Regenerate contract.py
+        id: generate
+        if: steps.fetch.outputs.fetched == 'true'
+        run: |
+          set -euo pipefail
+          uv sync --locked
+          uv run scripts/generate_contract.py
+          if [ -z "$(git status --porcelain -- contract src/wallet_example/contract.py)" ]; then
+            echo "The contract is unchanged. No PR."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git status --short
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The PR below is opened with the default GITHUB_TOKEN, and GitHub does not
+      # start other workflows (ci.yml) for events caused by that token. So the
+      # checks run here, before the PR is opened, and the PR links to this run.
+      - name: Check
+        if: steps.generate.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          uv run scripts/generate_contract.py --check
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run pyright
+          uv run pytest
+
+      - name: Open or update the PR
+        if: steps.generate.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.ref_name }}
+          RELEASE: ${{ github.event.client_payload.release }}
+          URL: ${{ steps.fetch.outputs.url }}
+          SHA256: ${{ steps.fetch.outputs.sha256 }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          files=(contract/connect-contract.json src/wallet_example/contract.py)
+          pr=$(gh pr list --head "$BRANCH" --base "$BASE" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$pr" ] && git fetch --quiet origin "$BRANCH" \
+            && git diff --quiet "origin/$BRANCH" -- "${files[@]}"; then
+            echo "PR #$pr already proposes this contract. Nothing to do."
+            exit 0
+          fi
+
+          title="Update the wallet contract ${RELEASE:-(sha256 ${SHA256:0:12})}"
+          version=$(jq .contract_version contract/connect-contract.json)
+          body="$RUNNER_TEMP/pr-body.md"
+          {
+            echo "Regenerated \`src/wallet_example/contract.py\` from the published wallet contract."
+            echo
+            echo "- Source: $URL"
+            echo "- sha256: \`$SHA256\`"
+            if [ -n "${RELEASE:-}" ]; then echo "- Wallet release: $RELEASE"; fi
+            echo "- contract_version: $version"
+            echo
+            echo "Format, lint, typecheck and tests passed in [the workflow run]($RUN_URL)."
+            echo "CI does not start on its own for PRs opened by GitHub Actions."
+          } > "$body"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git add "${files[@]}"
+          git commit --quiet -m "$title"
+          git push --force --quiet origin "$BRANCH"
+          if [ -n "$pr" ]; then
+            gh pr edit "$pr" --title "$title" --body-file "$body"
+            echo "Updated PR #$pr"
+          elif ! gh pr create --base "$BASE" --head "$BRANCH" --title "$title" --body-file "$body"; then
+            # Needs "Allow GitHub Actions to create and approve pull requests", which
+            # the organization must allow before the repository can turn it on.
+            echo "::error::Pushed $BRANCH but could not open the PR. Allow GitHub Actions to create pull requests (organization, then repository: Settings > Actions > General > Workflow permissions), or open it by hand: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$BASE...$BRANCH?expand=1"
+            exit 1
+          fi
