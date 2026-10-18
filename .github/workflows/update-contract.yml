@@ -6,6 +6,12 @@ name: Update wallet contract
 #
 # Haplotype Wallet sends a `wallet-contract-updated` repository_dispatch after a
 # release that changed the contract. The daily run is the fallback.
+#
+# Credentials: the optional CONTRACT_PR_TOKEN secret (a GitHub App installation
+# token or fine-grained token with Contents and Pull requests: write on this
+# repo) pushes the branch and opens the PR. Without it the workflow falls back
+# to GITHUB_TOKEN, which can open PRs only where the organization and the
+# repository allow GitHub Actions to create pull requests.
 
 on:
   repository_dispatch:
@@ -36,6 +42,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The token the checkout keeps is the one `git push` uses below.
+          token: ${{ secrets.CONTRACT_PR_TOKEN || github.token }}
 
       - name: Fetch the contract
         id: fetch
@@ -97,9 +106,9 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # The PR below is opened with the default GITHUB_TOKEN, and GitHub does not
-      # start other workflows (ci.yml) for events caused by that token. So the
-      # checks run here, before the PR is opened, and the PR links to this run.
+      # GitHub starts no other workflows (ci.yml) for pushes and PRs made with the
+      # default GITHUB_TOKEN. So the checks run here, before the PR is opened, and
+      # the PR links to this run. With CONTRACT_PR_TOKEN, CI runs on the PR as well.
       - name: Check
         if: steps.generate.outputs.changed == 'true'
         run: |
@@ -113,7 +122,7 @@ jobs:
       - name: Open or update the PR
         if: steps.generate.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.CONTRACT_PR_TOKEN || github.token }}
           BASE: ${{ github.ref_name }}
           RELEASE: ${{ github.event.client_payload.release }}
           URL: ${{ steps.fetch.outputs.url }}
@@ -141,7 +150,6 @@ jobs:
             echo "- contract_version: $version"
             echo
             echo "Format, lint, typecheck and tests passed in [the workflow run]($RUN_URL)."
-            echo "CI does not start on its own for PRs opened by GitHub Actions."
           } > "$body"
 
           git config user.name "github-actions[bot]"
@@ -154,8 +162,6 @@ jobs:
             gh pr edit "$pr" --title "$title" --body-file "$body"
             echo "Updated PR #$pr"
           elif ! gh pr create --base "$BASE" --head "$BRANCH" --title "$title" --body-file "$body"; then
-            # Needs "Allow GitHub Actions to create and approve pull requests", which
-            # the organization must allow before the repository can turn it on.
-            echo "::error::Pushed $BRANCH but could not open the PR. Allow GitHub Actions to create pull requests (organization, then repository: Settings > Actions > General > Workflow permissions), or open it by hand: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$BASE...$BRANCH?expand=1"
+            echo "::error::Pushed $BRANCH but could not open the PR. Set the CONTRACT_PR_TOKEN secret (see the top of this workflow), or open it by hand: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$BASE...$BRANCH?expand=1"
             exit 1
           fi

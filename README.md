@@ -177,8 +177,10 @@ Updates arrive as pull requests from the `update-contract` workflow. It runs whe
 wallet ships a release that changed the contract, daily as a fallback, and on demand
 (`gh workflow run update-contract.yml`). It fetches the contract, regenerates, runs the
 checks, and opens or updates one PR from the `contract-update` branch when something
-changed. If the contract's `contract_version` changes, the generator stops with an
-error, because the shape changed and the generator needs updating first.
+changed. It opens the PR with the `CONTRACT_PR_TOKEN` secret when set (a token with
+Contents and Pull requests: write on this repo), otherwise with `GITHUB_TOKEN`. If the
+contract's `contract_version` changes, the generator stops with an error, because the
+shape changed and the generator needs updating first.
 
 ## Testing
 
