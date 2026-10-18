@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Example App · Connect Haplotype Wallet</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand"><span class="logo" aria-hidden="true">E</span>Example App</span>
+    <span class="tag">Haplotype Wallet integration example (Python)</span>
+  </header>
+
+  <main class="card">
+    {% if auth_error %}
+    <div class="alert alert-error" role="alert" data-testid="auth-error">
+      <strong>Haplotype Wallet was not connected</strong>
+      {{ auth_error }}
+    </div>
+    {% endif %}
+
+    {% if reconnect_required and not connected %}
+    <div class="alert alert-warn" role="alert" data-testid="reconnect-required">
+      <strong>Connect Haplotype Wallet again</strong>
+      Haplotype Wallet no longer accepts this app's connection. This happens when you
+      disconnect the app in your wallet. Connect again to continue.
+    </div>
+    {% endif %}
+
+    {% if connected %}
+    <p class="status"><span class="dot" aria-hidden="true"></span>Connected</p>
+    <h1>Haplotype Wallet is connected</h1>
+
+    <section>
+      <h2>Permissions you granted</h2>
+      <ul class="scopes">
+        {% for scope, description in granted %}
+        <li data-testid="granted-scope" data-scope="{{ scope }}">
+          <svg class="check" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" /></svg>
+          <span>{{ description }}</span>
+          <code>{{ scope }}</code>
+        </li>
+        {% else %}
+        <li class="muted">You did not grant this app any wallet permissions.</li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    <section>
+      <h2>Your samples</h2>
+      {% if wallet_error %}
+      <div class="alert alert-error" role="alert" data-testid="wallet-error">{{ wallet_error }}</div>
+      {% elif samples is none %}
+      <p class="muted">This app was not given permission to see your samples.</p>
+      {% elif samples %}
+      <table>
+        <thead>
+          <tr><th>Sample</th><th>Original file</th><th>Processed</th></tr>
+        </thead>
+        <tbody>
+          {% for sample in samples %}
+          <tr data-testid="sample-row" data-sample-id="{{ sample.sample_id }}">
+            <td class="label">{{ sample.label }}</td>
+            <td class="file">{{ sample.source_filename }}</td>
+            <td class="date">{{ sample.processed_at | date }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty" data-testid="samples-empty">
+        <strong>No samples yet</strong>
+        Upload a genotype file to Haplotype Wallet and it will show up here.
+      </div>
+      {% endif %}
+    </section>
+
+    <form method="post" action="/disconnect" class="actions">
+      <button type="submit" class="button-secondary" data-testid="disconnect-button">Disconnect</button>
+      <p class="fine">
+        Disconnect makes this app forget the connection. To revoke its access, disconnect
+        the app in Haplotype Wallet.
+      </p>
+    </form>
+
+    {% else %}
+    <h1>Bring your genetic data</h1>
+    <p class="lead">
+      Connect your Haplotype Wallet so this app can see which genotype files you have.
+      You choose what to share on the next screen.
+    </p>
+    <a href="/connect" class="connect" data-testid="connect-button" aria-label="Connect Haplotype Wallet">
+      {# The button artwork is one file. Swap static/connect-button.svg to restyle it. #}
+      <img src="/static/connect-button.svg" alt="Connect Haplotype Wallet" height="44">
+    </a>
+    <ol class="steps">
+      <li>You sign in to Haplotype Wallet.</li>
+      <li>You review what this app asks for and approve it.</li>
+      <li>You come back here, and the app shows what you shared.</li>
+    </ol>
+    <p class="fine">You can disconnect this app in Haplotype Wallet at any time.</p>
+    {% endif %}
+  </main>
+
+  <footer>
+    Your tokens stay on this app's server. The browser only holds a session cookie.
+    <a href="https://www.haplotype.ai/developers/">Haplotype Wallet developer docs</a>
+  </footer>
+</body>
+</html>
