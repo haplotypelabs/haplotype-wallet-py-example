@@ -1,3 +1,5 @@
+import html
+import re
 from dataclasses import replace
 from typing import cast
 from urllib.parse import parse_qs, urlsplit
@@ -9,10 +11,10 @@ from tests.conftest import MCP_URL, FakeAuthKit
 from wallet_example import app as app_module
 from wallet_example.app import create_app
 from wallet_example.config import Settings
-from wallet_example.contract import SampleRecord
+from wallet_example.contract import ERROR_META_KEY, SampleRecord
 from wallet_example.oauth import WalletOAuth
 from wallet_example.sessions import COOKIE_NAME, Session, SessionStore
-from wallet_example.wallet import ReconnectRequired, WalletError
+from wallet_example.wallet import ReconnectRequired, ToolError, WalletError, error_info
 
 SAMPLE: SampleRecord = {
     "sample_id": "smp_1",
@@ -172,13 +174,133 @@ def test_disconnect_forgets_tokens(client: TestClient, monkeypatch: pytest.Monke
     assert 'data-testid="granted-scope"' not in page
 
 
-def test_tool_error_shows_wallet_error(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    stub_samples(monkeypatch, WalletError("This app was not granted the samples:read permission."))
+def tool_error(text: str, **envelope: object) -> ToolError:
+    """A failed call as `list_samples` raises it, from the wallet's `_meta` envelope."""
+    return ToolError(text, error_info({ERROR_META_KEY: envelope}))
+
+
+def test_billing_code_asks_to_renew_with_a_way_back(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manage = "https://www.haplotype.ai/app/account/?client_id=client_test"
+    stub_samples(
+        monkeypatch,
+        tool_error("Your free trial has ended.", code="trial_ended", manage_url=manage),
+    )
+    connect(client)
+    page = client.get("/").text
+
+    assert 'data-code="trial_ended"' in page
+    assert "Renew your Haplotype Wallet plan" in page
+    href = re.search(r'href="([^"]+)" data-testid="renew-plan"', page)
+    assert href is not None
+    url = urlsplit(html.unescape(href.group(1)))
+    assert f"{url.scheme}://{url.netloc}{url.path}" == "https://www.haplotype.ai/app/account/"
+    assert parse_qs(url.query) == {
+        "client_id": ["client_test"],
+        "return_to": ["http://localhost:8787/callback"],
+    }
+    assert 'data-testid="disconnect-button"' in page
+
+
+def test_missing_scope_offers_to_connect_again_for_it(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stub_samples(
+        monkeypatch,
+        tool_error("This app was not granted ...", code="missing_scope", scope="samples:read"),
+    )
+    connect(client)
+    page = client.get("/").text
+
+    assert 'data-code="missing_scope"' in page
+    assert (
+        'href="/connect?add_scope=samples%3Aread" data-testid="reconnect-scope" '
+        'data-scope="samples:read"'
+    ) in page
+    location = client.get("/connect", params={"add_scope": "samples:read"}).headers["location"]
+    assert parse_qs(urlsplit(location).query)["scope"] == ["openid offline_access samples:read"]
+
+
+def test_connect_adds_only_wallet_scopes(client: TestClient) -> None:
+    location = client.get("/connect", params={"add_scope": "admin:all"}).headers["location"]
+    assert parse_qs(urlsplit(location).query)["scope"] == ["openid offline_access samples:read"]
+
+
+def test_retryable_code_says_try_again(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    stub_samples(
+        monkeypatch,
+        tool_error("Listing samples failed ...", code="upstream_unavailable", ref="5f0c2a1e"),
+    )
+    connect(client)
+    page = client.get("/").text
+    assert 'data-code="upstream_unavailable"' in page
+    assert 'data-testid="retry"' in page
+
+
+def test_other_code_shows_message_and_reference(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stub_samples(
+        monkeypatch,
+        tool_error(
+            "Internal error in list_samples (ref: 5f0c2a1e). If this looks like a bug, tell the "
+            "user ...",
+            code="internal_error",
+            ref="5f0c2a1e",
+        ),
+    )
+    connect(client)
+    page = client.get("/").text
+    assert 'data-code="internal_error"' in page
+    assert "Internal error in list_samples" in page
+    assert "tell the user" not in page
+    assert '<code data-testid="error-ref">5f0c2a1e</code>' in page
+
+
+def test_unknown_code_is_treated_as_internal_error(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stub_samples(monkeypatch, tool_error("Something new.", code="brand_new", retryable=True))
+    connect(client)
+    page = client.get("/").text
+    assert 'data-code="internal_error"' in page
+    assert 'data-testid="retry"' not in page
+
+
+def test_unreachable_wallet_says_try_again(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stub_samples(monkeypatch, WalletError("Could not reach Haplotype Wallet."))
     connect(client)
     page = client.get("/").text
     assert 'data-testid="wallet-error"' in page
-    assert "samples:read permission" in page
+    assert 'data-testid="retry"' in page
+
+
+def test_back_from_the_account_page_without_an_error(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stub_samples(monkeypatch, [])
+    connect(client)
+    response = client.get("/callback")
+    assert response.headers["location"] == "/"
+    page = client.get("/").text
+    assert 'data-testid="auth-error"' not in page
     assert 'data-testid="disconnect-button"' in page
+
+
+def test_scopes_hook_sets_the_next_connect(settings: Settings, authkit: FakeAuthKit) -> None:
+    app = create_app(replace(settings, test_hooks=True), authkit.client())
+    client = TestClient(app, follow_redirects=False)
+    response = client.post(
+        "/debug/scopes",
+        content="scopes=openid+offline_access+scores%3Aread",
+        headers={"content-type": "application/x-www-form-urlencoded"},
+    )
+    assert response.status_code == 204
+    location = client.get("/connect").headers["location"]
+    assert parse_qs(urlsplit(location).query)["scope"] == ["openid offline_access scores:read"]
 
 
 def test_expire_token_hook_is_off_by_default(client: TestClient) -> None:

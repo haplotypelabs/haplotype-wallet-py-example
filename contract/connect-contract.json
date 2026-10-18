@@ -1,5 +1,76 @@
 {
   "contract_version": 1,
+  "errors": {
+    "codes": [
+      {
+        "action": "Send the user through consent again, asking for `scope` as well.",
+        "code": "missing_scope",
+        "meaning": "The token has no permission for this tool. `scope` names the one it needs.",
+        "retryable": false
+      },
+      {
+        "action": "Ask the user to sign in to Haplotype Wallet once.",
+        "code": "account_not_found",
+        "meaning": "The user has never opened Haplotype Wallet, so there is no data to share.",
+        "retryable": false
+      },
+      {
+        "action": "Tell the user. The same call works once the account is approved.",
+        "code": "waitlisted",
+        "meaning": "The user's account is waiting for approval.",
+        "retryable": false
+      },
+      {
+        "action": "Send the user to `manage_url` to subscribe.",
+        "code": "trial_ended",
+        "meaning": "The user's free trial has ended.",
+        "retryable": false
+      },
+      {
+        "action": "Send the user to `manage_url` to subscribe again.",
+        "code": "subscription_ended",
+        "meaning": "The user's subscription has ended.",
+        "retryable": false
+      },
+      {
+        "action": "Ask for less, or send the user to `manage_url`.",
+        "code": "limit_reached",
+        "meaning": "The call would go over the user's plan allowance, for example the polygenic score models `schedule_run` may compute.",
+        "retryable": false
+      },
+      {
+        "action": "Check the ID. List the user's samples or runs again.",
+        "code": "not_found",
+        "meaning": "The sample, run or algorithm does not exist or is not the user's.",
+        "retryable": false
+      },
+      {
+        "action": "Fix the call. Check it against the tool's input schema.",
+        "code": "invalid_argument",
+        "meaning": "The arguments do not fit the tool. The message names the parameters, never their values.",
+        "retryable": false
+      },
+      {
+        "action": "Wait, then retry.",
+        "code": "rate_limited",
+        "meaning": "Too many calls of this kind in a short time.",
+        "retryable": true
+      },
+      {
+        "action": "Retry after a short wait. If it persists, quote `ref` to us.",
+        "code": "upstream_unavailable",
+        "meaning": "A service behind the wallet failed or did not answer.",
+        "retryable": true
+      },
+      {
+        "action": "Quote `ref` when you report it to us.",
+        "code": "internal_error",
+        "meaning": "A bug on our side. The detail is withheld.",
+        "retryable": false
+      }
+    ],
+    "meta_key": "ai.haplotype/error"
+  },
   "mcp": {
     "stateless": true,
     "url": "https://api.haplotype.ai/mcp"

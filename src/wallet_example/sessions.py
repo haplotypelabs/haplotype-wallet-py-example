@@ -27,6 +27,8 @@ class Session:
     """Message for the next page view after a failed or denied connect."""
     reconnect_required: bool = False
     """Set when a refresh was refused, until the user connects again."""
+    test_scopes: str | None = None
+    """Test hook only: the scopes the next /connect asks for."""
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     """Serializes refreshes, so parallel requests do not refresh twice."""
 

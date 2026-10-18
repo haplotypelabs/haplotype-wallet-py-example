@@ -12,7 +12,8 @@ from wallet_example.sessions import Session
 from wallet_example.wallet import (
     BearerAuth,
     ReconnectRequired,
-    WalletError,
+    ToolError,
+    WalletErrorInfo,
     access_token,
     list_samples,
 )
@@ -107,9 +108,20 @@ async def test_list_samples_tool_error(
         text = TextContent(
             type="text", text="This app was not granted the samples:read permission."
         )
-        return CallToolResult(content=[text], is_error=True)
+        envelope = {"code": "missing_scope", "retryable": False, "scope": "samples:read"}
+        # Built from the wire format, as the MCP SDK parses a JSON-RPC result.
+        return CallToolResult.model_validate(
+            {
+                "content": [text.model_dump()],
+                "isError": True,
+                "_meta": {"ai.haplotype/error": envelope},
+            }
+        )
 
     monkeypatch.setattr(wallet, "call_tool", fake_call_tool)
     oauth = WalletOAuth(settings, authkit.client())
-    with pytest.raises(WalletError, match="samples:read"):
+    with pytest.raises(ToolError, match="samples:read") as caught:
         await list_samples(settings, session_with(600), oauth)
+    assert caught.value.info == WalletErrorInfo(
+        code="missing_scope", retryable=False, scope="samples:read"
+    )

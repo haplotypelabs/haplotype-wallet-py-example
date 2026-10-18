@@ -248,6 +248,28 @@ def generate(raw: bytes) -> str:
         '"""Plain-words description of each scope, to show the user."""',
     ]
 
+    if not isinstance(contract.get("errors"), dict):
+        raise ContractError(
+            "the contract has no `errors`, which this app needs to act on tool errors. It is "
+            "older than the wallet release that added error codes."
+        )
+    errors = get(contract, "errors", dict, "contract")
+    codes = get(errors, "codes", list, "errors")
+    out += [
+        "",
+        f"ERROR_META_KEY = {literal(get(errors, 'meta_key', str, 'errors'))}",
+        '"""A failed tool call carries its error in `result.meta[ERROR_META_KEY]`."""',
+        "",
+        "ERROR_RETRYABLE = {",
+        *(
+            f"    {literal(get(c, 'code', str, 'errors.codes[]'))}: "
+            f"{get(c, 'retryable', bool, 'errors.codes[]')},"
+            for c in codes
+        ),
+        "}",
+        '"""Every error code the wallet sends, and whether retrying the same call can help."""',
+    ]
+
     classes: dict[str, list[str]] = {}
     uses_any = False
     for name, config in TOOLS.items():

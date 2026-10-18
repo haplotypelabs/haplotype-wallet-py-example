@@ -6,6 +6,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import parse_qs
 
 import httpx2
 from fastapi import FastAPI, Request
@@ -14,10 +15,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from wallet_example.config import Settings, load_settings
-from wallet_example.contract import LIST_SAMPLES_SCOPE, SCOPE_DESCRIPTIONS, SampleRecord
+from wallet_example.contract import SCOPE_DESCRIPTIONS, SampleRecord
 from wallet_example.oauth import OAuthError, WalletOAuth, new_pkce_pair
 from wallet_example.sessions import COOKIE_NAME, Session, SessionStore
 from wallet_example.wallet import ReconnectRequired, WalletError, list_samples
+from wallet_example.wallet_errors import WalletErrorView, wallet_error_view
 
 HERE = Path(__file__).parent
 
@@ -82,7 +84,7 @@ def create_app(settings: Settings | None = None, http: httpx2.AsyncClient | None
         reconnect_required = bool(session and session.reconnect_required)
         granted: list[tuple[str, str]] = []
         samples: list[SampleRecord] | None = None
-        wallet_error: str | None = None
+        wallet_error: WalletErrorView | None = None
 
         if session:
             session.auth_error = None  # show it once
@@ -92,15 +94,16 @@ def create_app(settings: Settings | None = None, http: httpx2.AsyncClient | None
                 for scope in session.tokens.scope.split()
                 if scope not in OIDC_SCOPES
             ]
-            if LIST_SAMPLES_SCOPE in session.tokens.scope.split():
-                try:
-                    samples = await list_samples(settings, session, oauth)
-                except ReconnectRequired:
-                    session.tokens = None
-                    session.reconnect_required = True
-                    reconnect_required = True
-                except WalletError as e:
-                    wallet_error = str(e)
+            # Called even without `samples:read`: the wallet then answers
+            # `missing_scope`, and the page offers to connect again for it.
+            try:
+                samples = await list_samples(settings, session, oauth)
+            except ReconnectRequired:
+                session.tokens = None
+                session.reconnect_required = True
+                reconnect_required = True
+            except WalletError as e:
+                wallet_error = wallet_error_view(e, settings.app_url)
 
         response = templates.TemplateResponse(
             request,
@@ -118,16 +121,23 @@ def create_app(settings: Settings | None = None, http: httpx2.AsyncClient | None
         return response
 
     @app.get("/connect")
-    async def connect(request: Request) -> Response:
+    async def connect(request: Request, add_scope: str | None = None) -> Response:
         session = current_session(request)
         new_cookie = None
         if session is None:
             session, new_cookie = sessions.create()
+        # `add_scope` asks for one more wallet scope than configured, after a tool call
+        # failed with `missing_scope`. The consent screen shows again.
+        scopes = (session.test_scopes or settings.scopes).split()
+        if add_scope in SCOPE_DESCRIPTIONS and add_scope not in scopes:
+            scopes.append(add_scope)
         # `state` ties the callback to this browser session (CSRF protection).
         session.oauth_state = secrets.token_urlsafe(32)
         session.code_verifier, code_challenge = new_pkce_pair()
         try:
-            url = await oauth.authorization_url(session.oauth_state, code_challenge)
+            url = await oauth.authorization_url(
+                session.oauth_state, code_challenge, scope=" ".join(scopes)
+            )
         except httpx2.HTTPError as e:
             session.auth_error = f"Could not reach Haplotype Wallet ({e})."
             url = "/"
@@ -141,6 +151,10 @@ def create_app(settings: Settings | None = None, http: httpx2.AsyncClient | None
         error: str | None = None,
         error_description: str | None = None,
     ) -> Response:
+        if code is None and state is None and error is None:
+            # Back from the wallet's account page (see `return_address` in
+            # wallet_errors.py), not from a connect attempt.
+            return redirect("/")
         session = current_session(request)
         new_cookie = None
         if session is None:
@@ -183,6 +197,32 @@ def create_app(settings: Settings | None = None, http: httpx2.AsyncClient | None
             if session and session.tokens:
                 session.tokens.expires_at = 0
             return Response(status_code=204)
+
+        @app.post("/debug/scopes", status_code=204)
+        async def set_scopes(request: Request) -> Response:
+            """Test-only: the scopes the next /connect in this session asks for.
+
+            With fewer scopes than a tool needs, a test can reach the `missing_scope` path.
+            """
+            form = parse_qs((await request.body()).decode())
+            scopes = " ".join(form.get("scopes", [""])).strip()
+            if not scopes:
+                return PlainTextResponse("scopes is required", status_code=400)
+            new_cookie = None
+            session = current_session(request)
+            if session is None:
+                session, new_cookie = sessions.create()
+            session.test_scopes = scopes
+            response = Response(status_code=204)
+            if new_cookie:
+                response.set_cookie(
+                    COOKIE_NAME,
+                    new_cookie,
+                    httponly=True,
+                    samesite="lax",
+                    secure=settings.secure_cookies,
+                )
+            return response
 
     @app.get("/healthz", response_class=PlainTextResponse)
     async def healthz() -> str:

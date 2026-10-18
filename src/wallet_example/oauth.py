@@ -76,12 +76,14 @@ class WalletOAuth:
             metadata = self._metadata = dict[str, Any](response.json())
         return str(metadata[name])
 
-    async def authorization_url(self, state: str, code_challenge: str) -> str:
+    async def authorization_url(
+        self, state: str, code_challenge: str, scope: str | None = None
+    ) -> str:
         params = {
             "response_type": "code",
             "client_id": self._settings.client_id,
             "redirect_uri": self._settings.redirect_uri,
-            "scope": self._settings.scopes,
+            "scope": scope or self._settings.scopes,
             "state": state,
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",

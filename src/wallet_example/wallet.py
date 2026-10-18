@@ -1,7 +1,8 @@
 """Read the user's data from Haplotype Wallet over MCP, refreshing tokens as needed."""
 
 from collections.abc import AsyncGenerator
-from typing import cast
+from dataclasses import dataclass
+from typing import Any, cast
 
 import httpx2
 from mcp import Client
@@ -9,7 +10,13 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, Implementation, TextContent
 
 from wallet_example.config import Settings
-from wallet_example.contract import LIST_SAMPLES_TOOL, ListSamplesResult, SampleRecord
+from wallet_example.contract import (
+    ERROR_META_KEY,
+    ERROR_RETRYABLE,
+    LIST_SAMPLES_TOOL,
+    ListSamplesResult,
+    SampleRecord,
+)
 from wallet_example.oauth import OAuthError, WalletOAuth
 from wallet_example.sessions import Session
 
@@ -24,7 +31,58 @@ class ReconnectRequired(Exception):
 
 
 class WalletError(Exception):
-    """The wallet answered, but with an error the user should see."""
+    """The wallet could not be reached, or answered with an error the user should see."""
+
+
+@dataclass(frozen=True)
+class WalletErrorInfo:
+    """What the wallet says about a failed tool call, in `result.meta`.
+
+    Act on `code`, not on the message: the message is written for AI assistants.
+    """
+
+    code: str
+    retryable: bool
+    """True when the same call can succeed later without changes."""
+    ref: str | None = None
+    """Error reference. Quote it when you contact Haplotype Labs."""
+    scope: str | None = None
+    """With `missing_scope`: the scope the tool needs."""
+    manage_url: str | None = None
+    """With a billing code: where the user manages their plan."""
+
+
+def error_info(meta: dict[str, Any] | None) -> WalletErrorInfo:
+    """The error envelope of a failed call.
+
+    A code this app does not know (the wallet may add some) is treated as
+    `internal_error`, as the docs ask.
+    """
+    envelope: object = (meta or {}).get(ERROR_META_KEY)
+    raw = cast(dict[str, object], envelope) if isinstance(envelope, dict) else {}
+
+    def text(key: str) -> str | None:
+        value = raw.get(key)
+        return value if isinstance(value, str) else None
+
+    code = text("code")
+    if code not in ERROR_RETRYABLE:
+        return WalletErrorInfo(code="internal_error", retryable=False, ref=text("ref"))
+    return WalletErrorInfo(
+        code=code,
+        retryable=ERROR_RETRYABLE[code],
+        ref=text("ref"),
+        scope=text("scope"),
+        manage_url=text("manage_url"),
+    )
+
+
+class ToolError(WalletError):
+    """The tool ran and reported an error, with the wallet's error code."""
+
+    def __init__(self, message: str, info: WalletErrorInfo) -> None:
+        super().__init__(message)
+        self.info = info
 
 
 async def access_token(session: Session, oauth: WalletOAuth, *, force_refresh: bool = False) -> str:
@@ -109,7 +167,7 @@ async def list_samples(
     result = await call_tool(settings, session, oauth, LIST_SAMPLES_TOOL)
     if result.is_error:
         text = " ".join(c.text for c in result.content if isinstance(c, TextContent))
-        raise WalletError(text or "Haplotype Wallet returned an error.")
+        raise ToolError(text or "Haplotype Wallet returned an error.", error_info(result.meta))
     # A tool that returns a list wraps it as {"result": [...]} in `structuredContent`.
     structured = cast(ListSamplesResult, result.structured_content or {})
     return structured.get("result", [])

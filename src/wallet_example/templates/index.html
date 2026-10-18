@@ -50,9 +50,30 @@
     <section>
       <h2>Your samples</h2>
       {% if wallet_error %}
-      <div class="alert alert-error" role="alert" data-testid="wallet-error">{{ wallet_error }}</div>
-      {% elif samples is none %}
-      <p class="muted">This app was not given permission to see your samples.</p>
+      {# A failed tool call. data-code is the wallet's error code. #}
+      <div class="alert alert-error" role="alert" data-testid="wallet-error"{% if wallet_error.code %} data-code="{{ wallet_error.code }}"{% endif %}>
+        {% if wallet_error.kind == "billing" %}
+        <strong>Renew your Haplotype Wallet plan</strong>
+        <p>{{ wallet_error.message }}</p>
+        {% if wallet_error.renew_url %}
+        <p><a href="{{ wallet_error.renew_url }}" data-testid="renew-plan">Manage your plan in Haplotype Wallet</a></p>
+        {% endif %}
+        {% elif wallet_error.kind == "missing-scope" %}
+        <strong>This app needs one more permission</strong>
+        <p>To show this, the app needs you to allow: {{ wallet_error.description }} <code>{{ wallet_error.scope }}</code>.</p>
+        <p><a href="{{ wallet_error.reconnect_url }}" data-testid="reconnect-scope" data-scope="{{ wallet_error.scope }}">Connect again and allow it</a></p>
+        {% elif wallet_error.kind == "retry" %}
+        <strong>Haplotype Wallet did not answer</strong>
+        <p>Try again in a moment.</p>
+        <p><a href="/" data-testid="retry">Try again</a></p>
+        {% else %}
+        <strong>Haplotype Wallet returned an error</strong>
+        <p>{{ wallet_error.message }}</p>
+        {% if wallet_error.ref %}
+        <p class="muted">Reference: <code data-testid="error-ref">{{ wallet_error.ref }}</code>. Quote it if you contact Haplotype Labs.</p>
+        {% endif %}
+        {% endif %}
+      </div>
       {% elif samples %}
       <table>
         <thead>

@@ -138,13 +138,33 @@ Your app can only request the scopes we assigned to it. The
 [tool reference](https://www.haplotype.ai/developers/tools/) documents every tool's
 input and output.
 
+## Error codes
+
+A tool call that fails comes back with `is_error` set, a message written for AI
+assistants, and a stable code in `result.meta["ai.haplotype/error"]`. The app acts on
+the code (`wallet_errors.py`), never on the message:
+
+- `trial_ended`, `subscription_ended`, `limit_reached`: "Renew your Haplotype Wallet
+  plan", linking to the wallet's `manage_url` with `return_to` set to this app's
+  callback, so the user comes back here after paying.
+- `missing_scope`: offers to connect again, asking for the scope the error names
+  (`/connect?add_scope=<scope>`).
+- A code with `retryable` true: "try again".
+- Anything else, including a code the app does not know: the message and the error
+  reference (`ref`).
+
+The codes come from the generated `contract.py` (`ERROR_RETRYABLE`). The partner guide
+lists them all:
+<https://www.haplotype.ai/developers/connect-wallet/#in-a-tool-result>.
+
 ## Code layout
 
 ```
 src/wallet_example/
   contract.py   generated from the wallet contract: default URLs, scopes, tool names, result types
   oauth.py      authorize URL, code exchange, refresh
-  wallet.py     access tokens for a session, MCP calls
+  wallet.py     access tokens for a session, MCP calls, the error code of a failed one
+  wallet_errors.py  what the page shows for each error code
   sessions.py   server-side session store and signed cookie
   app.py        routes and page rendering
   templates/    the page
@@ -188,12 +208,18 @@ shape changed and the generator needs updating first.
 
 Page elements carry `data-testid` attributes (`connect-button`, `granted-scope`,
 `sample-row`, `samples-empty`, `auth-error`, `reconnect-required`, `wallet-error`,
-`disconnect-button`) for automated tests.
+`disconnect-button`) for automated tests. `wallet-error` has `data-code`, the wallet's
+error code, and holds `renew-plan`, `reconnect-scope` (with `data-scope`), `retry` or
+`error-ref`, by code.
 
-With `EXAMPLE_TEST_HOOKS=1` the app also registers `POST /debug/expire-token`. It marks
-the current session's access token as expired and answers `204`, so the next page view
-runs a refresh. With any other value the route does not exist. Leave it off outside
-tests.
+With `EXAMPLE_TEST_HOOKS=1` the app also registers two routes. With any other value
+they do not exist. Leave them off outside tests.
+
+- `POST /debug/expire-token` marks the current session's access token as expired and
+  answers `204`, so the next page view runs a refresh.
+- `POST /debug/scopes` with a form field `scopes` sets the scopes the next `/connect`
+  in this session asks for, in place of `WALLET_SCOPES`, and answers `204`. With fewer
+  scopes than `list_samples` needs, a test reaches the `missing_scope` path.
 
 ## Development
 
