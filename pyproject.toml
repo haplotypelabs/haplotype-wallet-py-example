@@ -3,6 +3,8 @@ name = "haplotype-wallet-py-example"
 version = "0.1.0"
 description = "Example server-side app that connects to Haplotype Wallet with OAuth and reads data over MCP"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.144.0",

@@ -1,3 +1,4 @@
+from dataclasses import replace
 from typing import cast
 from urllib.parse import parse_qs, urlsplit
 
@@ -178,3 +179,26 @@ def test_tool_error_shows_wallet_error(client: TestClient, monkeypatch: pytest.M
     assert 'data-testid="wallet-error"' in page
     assert "samples:read permission" in page
     assert 'data-testid="disconnect-button"' in page
+
+
+def test_expire_token_hook_is_off_by_default(client: TestClient) -> None:
+    assert client.post("/debug/expire-token").status_code == 404
+
+
+def test_expire_token_hook_forces_a_refresh(
+    settings: Settings, authkit: FakeAuthKit, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stub_samples(monkeypatch, [])
+    app = create_app(replace(settings, test_hooks=True), authkit.client())
+    client = TestClient(app, follow_redirects=False)
+    connect(client)
+    store = cast(SessionStore, app.state.sessions)
+    sessions = store._sessions.values()  # pyright: ignore[reportPrivateUsage]
+    [session] = [s for s in sessions if s.tokens]
+    assert session.tokens is not None
+    assert not session.tokens.expires_within(60)
+
+    response = client.post("/debug/expire-token")
+
+    assert (response.status_code, response.content) == (204, b"")
+    assert session.tokens.expires_within(60)

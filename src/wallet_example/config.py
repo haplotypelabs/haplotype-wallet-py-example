@@ -19,6 +19,8 @@ class Settings:
     app_url: str
     port: int
     session_secret: str
+    test_hooks: bool = False
+    """Registers test-only routes. Never turn this on outside tests."""
 
     @property
     def redirect_uri(self) -> str:
@@ -56,4 +58,5 @@ def load_settings() -> Settings:
         # Sessions live in memory and die with the process, so a random secret per run is
         # enough. Set SESSION_SECRET once you keep sessions in a shared store.
         session_secret=_env("SESSION_SECRET") or secrets.token_hex(32),
+        test_hooks=_env("EXAMPLE_TEST_HOOKS") == "1",
     )

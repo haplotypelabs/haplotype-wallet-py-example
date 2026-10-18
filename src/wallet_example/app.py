@@ -174,6 +174,16 @@ def create_app(settings: Settings | None = None, http: httpx2.AsyncClient | None
             session.reconnect_required = False
         return redirect("/")
 
+    if settings.test_hooks:
+
+        @app.post("/debug/expire-token", status_code=204)
+        async def expire_token(request: Request) -> Response:
+            """Test-only: mark the access token as expired, so the next page view refreshes it."""
+            session = current_session(request)
+            if session and session.tokens:
+                session.tokens.expires_at = 0
+            return Response(status_code=204)
+
     @app.get("/healthz", response_class=PlainTextResponse)
     async def healthz() -> str:
         return "ok"

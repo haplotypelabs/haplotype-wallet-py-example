@@ -157,9 +157,16 @@ When the wallet adds scopes or changes a result shape, that file is the one to u
 
 To restyle the button, replace `src/wallet_example/static/connect-button.svg`.
 
+## Testing
+
 Page elements carry `data-testid` attributes (`connect-button`, `granted-scope`,
 `sample-row`, `samples-empty`, `auth-error`, `reconnect-required`, `wallet-error`,
 `disconnect-button`) for automated tests.
+
+With `EXAMPLE_TEST_HOOKS=1` the app also registers `POST /debug/expire-token`. It marks
+the current session's access token as expired and answers `204`, so the next page view
+runs a refresh. With any other value the route does not exist. Leave it off outside
+tests.
 
 ## Development
 
@@ -169,3 +176,7 @@ uv run ruff format . && uv run ruff check .
 uv run pyright
 uv run pytest
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
