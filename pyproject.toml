@@ -1,0 +1,47 @@
+[project]
+name = "haplotype-wallet-py-example"
+version = "0.1.0"
+description = "Example server-side app that connects to Haplotype Wallet with OAuth and reads data over MCP"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.144.0",
+    "httpx2>=2.13.1",
+    "jinja2>=3.1.6",
+    "mcp>=2.3.0",
+    "uvicorn>=0.54.0",
+]
+
+[project.scripts]
+wallet-example = "wallet_example.__main__:main"
+
+[build-system]
+requires = ["uv_build>=0.12.15,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "wallet_example"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.17.1",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
