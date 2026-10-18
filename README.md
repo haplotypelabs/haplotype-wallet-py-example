@@ -142,20 +142,43 @@ input and output.
 
 ```
 src/wallet_example/
-  contract.py   everything that comes from the wallet's contract: default URLs, scopes, tool names, result types
+  contract.py   generated from the wallet contract: default URLs, scopes, tool names, result types
   oauth.py      authorize URL, code exchange, refresh
   wallet.py     access tokens for a session, MCP calls
   sessions.py   server-side session store and signed cookie
   app.py        routes and page rendering
   templates/    the page
   static/       CSS and the button (connect-button.svg)
+contract/       the vendored wallet contract (connect-contract.json)
+scripts/        generate_contract.py, which writes contract.py
 tests/          unit tests with a fake authorization server
 ```
 
-`contract.py` holds everything that comes from the wallet's contract and nothing else.
-When the wallet adds scopes or changes a result shape, that file is the one to update.
-
 To restyle the button, replace `src/wallet_example/static/connect-button.svg`.
+
+## Wallet contract
+
+Haplotype Wallet publishes what apps depend on (OAuth and MCP endpoints, scopes and
+their wording, tool names, tool input and output schemas) as
+[`connect-contract.json`](https://www.haplotype.ai/developers/connect-contract.json).
+This repo keeps a copy in `contract/connect-contract.json`, and
+`src/wallet_example/contract.py` is generated from it. Do not edit `contract.py` by
+hand. Everything else in the app is hand-written.
+
+```sh
+uv run scripts/generate_contract.py           # regenerate contract.py
+uv run scripts/generate_contract.py --check   # fail if it is out of date (CI runs this)
+```
+
+To call another tool, add it to `TOOLS` in `scripts/generate_contract.py` and
+regenerate. That adds its name, scope and result TypedDicts.
+
+Updates arrive as pull requests from the `update-contract` workflow. It runs when the
+wallet ships a release that changed the contract, daily as a fallback, and on demand
+(`gh workflow run update-contract.yml`). It fetches the contract, regenerates, runs the
+checks, and opens or updates one PR from the `contract-update` branch when something
+changed. If the contract's `contract_version` changes, the generator stops with an
+error, because the shape changed and the generator needs updating first.
 
 ## Testing
 
@@ -172,6 +195,7 @@ tests.
 
 ```sh
 uv sync
+uv run scripts/generate_contract.py --check
 uv run ruff format . && uv run ruff check .
 uv run pyright
 uv run pytest

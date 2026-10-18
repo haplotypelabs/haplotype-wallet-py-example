@@ -1,0 +1,1723 @@
+{
+  "contract_version": 1,
+  "mcp": {
+    "stateless": true,
+    "url": "https://api.haplotype.ai/mcp"
+  },
+  "oauth": {
+    "access_token_lifetime_seconds": 900,
+    "authorize_path": "/oauth2/authorize",
+    "issuer": "https://authkit.haplotype.ai",
+    "resource": "https://api.haplotype.ai/mcp",
+    "resource_required_on": [
+      "authorize",
+      "token",
+      "refresh"
+    ],
+    "token_path": "/oauth2/token"
+  },
+  "open_tools": [
+    "get_algorithm",
+    "list_algorithms",
+    "list_gwas_associations",
+    "list_pgs_categories",
+    "lookup_clingen",
+    "lookup_cpic",
+    "lookup_variant_references",
+    "search_pgs_scores"
+  ],
+  "scopes": [
+    {
+      "description": "See which genotype files you have and how they were processed",
+      "name": "View genotype files",
+      "slug": "samples:read",
+      "tools": [
+        "get_sample",
+        "list_samples"
+      ]
+    },
+    {
+      "description": "Read your genotype at the positions it asks about",
+      "name": "Read genotypes",
+      "slug": "variants:read",
+      "tools": [
+        "query_variants"
+      ]
+    },
+    {
+      "description": "Read your polygenic scores and analysis runs",
+      "name": "Read scores and runs",
+      "slug": "scores:read",
+      "tools": [
+        "get_run",
+        "list_member_pgs_scores",
+        "list_runs"
+      ]
+    },
+    {
+      "description": "Start new analyses on your genotypes",
+      "name": "Start analyses",
+      "slug": "runs:write",
+      "tools": [
+        "schedule_run"
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {
+            "description": "The run identifier from schedule_run or list_runs.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "type": "object"
+      },
+      "name": "get_run",
+      "output_schema": {
+        "description": "One run: status, input, output, provenance and task progress.",
+        "properties": {
+          "algorithm": {
+            "type": "string"
+          },
+          "created": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "input": {
+            "additionalProperties": true,
+            "description": "The algorithm input, passed through as scheduled.",
+            "type": "object"
+          },
+          "modified": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "output": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The algorithm output, passed through. Empty until the run completes."
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "description": "Where a run's result came from. Null only when both parts are absent.",
+                "properties": {
+                  "inputs": {
+                    "anyOf": [
+                      {
+                        "description": "What a run consumed.",
+                        "properties": {
+                          "chromosomes": {
+                            "description": "Number of per-chromosome files the run read.",
+                            "type": "integer"
+                          },
+                          "stage": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Processing stage of the sample files the run read."
+                          }
+                        },
+                        "required": [
+                          "stage",
+                          "chromosomes"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Null for runs that predate input tracking."
+                  },
+                  "sample_provenance": {
+                    "anyOf": [
+                      {
+                        "description": "How a sample was produced: genome builds, imputation, and pipeline steps.",
+                        "properties": {
+                          "imputation_tool": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Tool of the imputation step, e.g. \"beagle\"."
+                          },
+                          "impute_reason": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "is_imputed": {
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "pipeline": {
+                            "items": {
+                              "description": "One step of the processing pipeline that produced a sample.",
+                              "properties": {
+                                "finished_at": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "started_at": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "step": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Step name, e.g. \"beagle-impute\"."
+                                },
+                                "tools": {
+                                  "description": "Tools the step ran, each as \"name version\".",
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "step",
+                                "tools",
+                                "started_at",
+                                "finished_at"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "processed_at": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "reference_panel": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Id of the imputation reference panel."
+                          },
+                          "source_build": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Genome build of the uploaded file, e.g. \"GRCh37\"."
+                          },
+                          "target_build": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Genome build of the imputation reference panel."
+                          },
+                          "variant_count": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "is_imputed",
+                          "source_build",
+                          "target_build",
+                          "reference_panel",
+                          "variant_count",
+                          "impute_reason",
+                          "processed_at",
+                          "imputation_tool",
+                          "pipeline"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "How the run's input sample was produced. Null when the sample predates provenance or could not be read."
+                  }
+                },
+                "required": [
+                  "inputs",
+                  "sample_provenance"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "sample_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Wallet sample_id the run was computed on."
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pending, then Complete or Error."
+          },
+          "tasks": {
+            "items": {
+              "description": "One execution task of a run, with its step plan and progress.",
+              "properties": {
+                "completed_at": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "current_step": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "error_message": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "estimated_duration_seconds": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Average completion time of past tasks of this kind."
+                },
+                "eta_seconds_remaining": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "started_at": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "status": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "pending, running, succeeded, failed or cancelled."
+                },
+                "steps": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "additionalProperties": true,
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The planned step sequence, passed through."
+                },
+                "suggested_poll_interval_seconds": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Wait this long before calling get_run again."
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "status",
+                "current_step",
+                "steps",
+                "started_at",
+                "completed_at",
+                "error_message",
+                "estimated_duration_seconds",
+                "eta_seconds_remaining",
+                "suggested_poll_interval_seconds"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "algorithm",
+          "version",
+          "status",
+          "sample_id",
+          "input",
+          "output",
+          "provenance",
+          "created",
+          "modified",
+          "tasks"
+        ],
+        "type": "object"
+      },
+      "scope": "scores:read"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "sample_id": {
+            "description": "The sample identifier (e.g. \"ABCDEFGHIJ001\") from list_samples.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sample_id"
+        ],
+        "type": "object"
+      },
+      "name": "get_sample",
+      "output_schema": {
+        "description": "One sample, with the upload request it was created from.",
+        "properties": {
+          "file_size": {
+            "description": "Size of the uploaded file in bytes.",
+            "type": "integer"
+          },
+          "haplohub_created": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When HaploHub created the sample. Absent when the upstream lookup failed."
+          },
+          "label": {
+            "description": "Short display name, e.g. \"Sample #1\".",
+            "type": "string"
+          },
+          "processed_at": {
+            "type": "string"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "description": "How a sample was produced, and the uploaded file it came from.",
+                "properties": {
+                  "imputation_tool": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Tool of the imputation step, e.g. \"beagle\"."
+                  },
+                  "impute_reason": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "is_imputed": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "pipeline": {
+                    "items": {
+                      "description": "One step of the processing pipeline that produced a sample.",
+                      "properties": {
+                        "finished_at": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "started_at": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "step": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Step name, e.g. \"beagle-impute\"."
+                        },
+                        "tools": {
+                          "description": "Tools the step ran, each as \"name version\".",
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "step",
+                        "tools",
+                        "started_at",
+                        "finished_at"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "processed_at": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "reference_panel": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Id of the imputation reference panel."
+                  },
+                  "source_build": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Genome build of the uploaded file, e.g. \"GRCh37\"."
+                  },
+                  "source_upload": {
+                    "description": "The uploaded file a sample came from.",
+                    "properties": {
+                      "filename": {
+                        "type": "string"
+                      },
+                      "uploaded_at": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "filename",
+                      "uploaded_at"
+                    ],
+                    "type": "object"
+                  },
+                  "target_build": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Genome build of the imputation reference panel."
+                  },
+                  "variant_count": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "is_imputed",
+                  "source_build",
+                  "target_build",
+                  "reference_panel",
+                  "variant_count",
+                  "impute_reason",
+                  "processed_at",
+                  "imputation_tool",
+                  "pipeline",
+                  "source_upload"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for samples processed before provenance was recorded, and when the upstream lookup failed."
+          },
+          "sample_id": {
+            "description": "Pass this to get_sample, query_variants, schedule_run and list_runs.",
+            "type": "string"
+          },
+          "source_filename": {
+            "type": "string"
+          },
+          "upload_request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sample_id",
+          "label",
+          "source_filename",
+          "file_size",
+          "processed_at",
+          "provenance",
+          "upload_request_id"
+        ],
+        "type": "object"
+      },
+      "scope": "samples:read"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "list_member_pgs_scores",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "description": "A computed polygenic score, the most recent one for its model.",
+              "properties": {
+                "adjusted_z_score": {
+                  "type": "number"
+                },
+                "created": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "percentile": {
+                  "type": "number"
+                },
+                "pgs_model_id": {
+                  "description": "The scored model, as a harmonized id such as PGS000123_hmPOS_GRCh38. The leading PGS number is the PGS Catalog id that search_pgs_scores returns.",
+                  "type": "string"
+                },
+                "population_id": {
+                  "description": "Reference population the score is relative to.",
+                  "type": "string"
+                },
+                "population_percentile": {
+                  "type": "number"
+                },
+                "population_z_score": {
+                  "type": "number"
+                },
+                "result_id": {
+                  "description": "The run that computed the score. Pass it to get_run to see what the run consumed and how the sample was produced.",
+                  "type": "string"
+                },
+                "sample_id": {
+                  "description": "Wallet sample_id the score was computed on.",
+                  "type": "string"
+                },
+                "score_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "score_id",
+                "pgs_model_id",
+                "sample_id",
+                "result_id",
+                "percentile",
+                "adjusted_z_score",
+                "population_id",
+                "population_percentile",
+                "population_z_score",
+                "created"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object",
+        "x-fastmcp-wrap-result": true
+      },
+      "scope": "scores:read"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "sample_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional: only runs over this sample. Use a wallet sample_id from list_samples."
+          }
+        },
+        "type": "object"
+      },
+      "name": "list_runs",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "description": "A scheduled run, without its input, output and tasks.",
+              "properties": {
+                "algorithm": {
+                  "type": "string"
+                },
+                "created": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "provenance": {
+                  "anyOf": [
+                    {
+                      "description": "Where a run's result came from. Null only when both parts are absent.",
+                      "properties": {
+                        "inputs": {
+                          "anyOf": [
+                            {
+                              "description": "What a run consumed.",
+                              "properties": {
+                                "chromosomes": {
+                                  "description": "Number of per-chromosome files the run read.",
+                                  "type": "integer"
+                                },
+                                "stage": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Processing stage of the sample files the run read."
+                                }
+                              },
+                              "required": [
+                                "stage",
+                                "chromosomes"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Null for runs that predate input tracking."
+                        },
+                        "sample_provenance": {
+                          "anyOf": [
+                            {
+                              "description": "The at-a-glance part of a sample's provenance, without the pipeline steps.",
+                              "properties": {
+                                "imputation_tool": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "is_imputed": {
+                                  "anyOf": [
+                                    {
+                                      "type": "boolean"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "processed_at": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "reference_panel": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "target_build": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "is_imputed",
+                                "target_build",
+                                "reference_panel",
+                                "imputation_tool",
+                                "processed_at"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "How the run's input sample was produced. Null when the sample predates provenance or could not be read."
+                        }
+                      },
+                      "required": [
+                        "inputs",
+                        "sample_provenance"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "run_id": {
+                  "description": "Pass this to get_run.",
+                  "type": "string"
+                },
+                "sample_id": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Wallet sample_id the run was computed on."
+                },
+                "status": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Pending, then Complete or Error."
+                },
+                "version": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "run_id",
+                "algorithm",
+                "version",
+                "status",
+                "sample_id",
+                "provenance",
+                "created"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object",
+        "x-fastmcp-wrap-result": true
+      },
+      "scope": "scores:read"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "list_samples",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "description": "A sample the caller is authorized to use.",
+              "properties": {
+                "file_size": {
+                  "description": "Size of the uploaded file in bytes.",
+                  "type": "integer"
+                },
+                "haplohub_created": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "When HaploHub created the sample. Absent when the upstream lookup failed."
+                },
+                "label": {
+                  "description": "Short display name, e.g. \"Sample #1\".",
+                  "type": "string"
+                },
+                "processed_at": {
+                  "type": "string"
+                },
+                "provenance": {
+                  "anyOf": [
+                    {
+                      "description": "How a sample was produced, and the uploaded file it came from.",
+                      "properties": {
+                        "imputation_tool": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Tool of the imputation step, e.g. \"beagle\"."
+                        },
+                        "impute_reason": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "is_imputed": {
+                          "anyOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "pipeline": {
+                          "items": {
+                            "description": "One step of the processing pipeline that produced a sample.",
+                            "properties": {
+                              "finished_at": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "started_at": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "step": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Step name, e.g. \"beagle-impute\"."
+                              },
+                              "tools": {
+                                "description": "Tools the step ran, each as \"name version\".",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "step",
+                              "tools",
+                              "started_at",
+                              "finished_at"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "processed_at": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "reference_panel": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Id of the imputation reference panel."
+                        },
+                        "source_build": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Genome build of the uploaded file, e.g. \"GRCh37\"."
+                        },
+                        "source_upload": {
+                          "description": "The uploaded file a sample came from.",
+                          "properties": {
+                            "filename": {
+                              "type": "string"
+                            },
+                            "uploaded_at": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "filename",
+                            "uploaded_at"
+                          ],
+                          "type": "object"
+                        },
+                        "target_build": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Genome build of the imputation reference panel."
+                        },
+                        "variant_count": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "is_imputed",
+                        "source_build",
+                        "target_build",
+                        "reference_panel",
+                        "variant_count",
+                        "impute_reason",
+                        "processed_at",
+                        "imputation_tool",
+                        "pipeline",
+                        "source_upload"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Null for samples processed before provenance was recorded, and when the upstream lookup failed."
+                },
+                "sample_id": {
+                  "description": "Pass this to get_sample, query_variants, schedule_run and list_runs.",
+                  "type": "string"
+                },
+                "source_filename": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sample_id",
+                "label",
+                "source_filename",
+                "file_size",
+                "processed_at",
+                "provenance"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object",
+        "x-fastmcp-wrap-result": true
+      },
+      "scope": "samples:read"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "chromosome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Chromosome accession (e.g. \"chr13\", \"NC_000013.11\"). Required when query_type is \"region\" and positions is not given."
+          },
+          "clinical_significance": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "ClinVar significance-label filter. Defaults to [\"Pathogenic\", \"Likely_pathogenic\"]. Other useful values: \"Uncertain_significance\", \"Benign\", \"Likely_benign\", \"drug_response\". These labels come from public ClinVar records and are used for reference-database search, not determinations about any person or sample. Case-insensitive substring match."
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "1-based end position. Required when query_type is \"region\" and positions is not given."
+          },
+          "gene_symbols": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Gene symbols to query (e.g. [\"APOE\", \"TCF7L2\"]). Required when query_type is \"clinvar\". Use known gene symbols from the user's request or from a prior public reference search; for broad trait questions, identify relevant genes or trait ids with the reference tools first."
+          },
+          "hgvs": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "HGVS notation (e.g. \"NC_000013.11:g.32356461T>G\"), one string or a list of up to 20 to look up in one call. Required when query_type is \"hgvs\". Supports both c. and g. notation."
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "One or two sentences on what the user is trying to learn and why this query serves it, under 400 characters. Describe the goal in general terms (e.g. \"Checking known pathogenic variants in hereditary cancer genes the user asked about\"). Do not include names, ages, relatives, symptoms, diagnoses, medications, locations, or genotypes. Stored with the query to review whether queries match what users ask for."
+          },
+          "p_value_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Maximum association p-value (e.g. 5e-8 for genome-wide significance). Only used when query_type is \"gwas\"."
+          },
+          "positions": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Batch of loci for query_type \"region\", up to 20 per call, each \"<chromosome>:<position>\" or \"<chromosome>:<start>-<end>\" (e.g. [\"chr4:67031670\", \"chr5:103743441-103743500\"]). Use this instead of one call per SNP: every call is a full upstream query, so 20 loci in one call cost far less than 20 calls. Takes precedence over chromosome/start/end."
+          },
+          "query_type": {
+            "description": "The type of variant query. \"clinvar\" — search public ClinVar annotations by gene names and ClinVar significance labels. \"hgvs\" — look up a specific variant by HGVS notation (e.g. \"NC_000013.11:g.32356461T>G\"). \"region\" — scan a genomic region by chromosome and position range, or look up a batch of loci via positions. \"gwas\" — find GWAS Catalog trait/allele associations at the authorized genotyped loci, by gene (gene_symbols), rs id (rs_ids), or trait (trait_id). Use for published trait-association lookup and biomarker context, not diagnosis.",
+            "type": "string"
+          },
+          "rs_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "SNP rs ids to look up (e.g. [\"rs7903146\"]). Only used when query_type is \"gwas\"."
+          },
+          "sample_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional: query only this sample instead of all user samples. Use a sample_id from list_samples."
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "1-based start position. Required when query_type is \"region\" and positions is not given."
+          },
+          "trait_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "GWAS Catalog / EFO trait id (e.g. an EFO id) to filter associations. Only used when query_type is \"gwas\"."
+          }
+        },
+        "required": [
+          "query_type"
+        ],
+        "type": "object"
+      },
+      "name": "query_variants",
+      "output_schema": {
+        "description": "Observed variants at the queried loci, with public annotations.",
+        "properties": {
+          "samples": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Label of each queried sample, keyed as in `calls`.",
+            "type": "object"
+          },
+          "unresolved": {
+            "description": "Present only when some items did not resolve.",
+            "items": {
+              "description": "A queried item that matched no variant, or that failed.",
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "query": {
+                  "description": "The item as it was sent.",
+                  "type": "string"
+                },
+                "resolved": {
+                  "description": "What the item resolved to, when it did.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "variants": {
+            "items": {
+              "description": "One variant locus, with the genotype calls observed at it.",
+              "properties": {
+                "calls": {
+                  "additionalProperties": {
+                    "type": "integer"
+                  },
+                  "description": "Dosage per sample, keyed like `samples`: 0 absent, 1 one alternate allele, 2 two. A sample with no call at the locus is left out.",
+                  "type": "object"
+                },
+                "clinvar": {
+                  "description": "Present only when ClinVar has records here.",
+                  "items": {
+                    "description": "A public ClinVar record at the locus.",
+                    "properties": {
+                      "conditions": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "gene": {
+                        "type": "string"
+                      },
+                      "review": {
+                        "description": "ClinVar review status.",
+                        "type": "string"
+                      },
+                      "significance": {
+                        "description": "ClinVar significance label, e.g. \"Pathogenic\".",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "gene",
+                      "significance",
+                      "conditions",
+                      "review"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "error": {
+                  "type": "string"
+                },
+                "gwas": {
+                  "description": "Present only when the GWAS Catalog has records here.",
+                  "items": {
+                    "description": "A GWAS Catalog trait association at the locus.",
+                    "properties": {
+                      "gene": {
+                        "type": "string"
+                      },
+                      "or_beta": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Odds ratio or beta coefficient."
+                      },
+                      "p": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Association p-value."
+                      },
+                      "pmid": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "PubMed id of the study."
+                      },
+                      "raf": {
+                        "description": "Risk allele frequency, as the catalog reports it.",
+                        "type": "string"
+                      },
+                      "reported_allele": {
+                        "description": "The strongest reported risk allele, e.g. \"rs7903146-T\".",
+                        "type": "string"
+                      },
+                      "rs": {
+                        "type": "string"
+                      },
+                      "study": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "GWAS Catalog study accession."
+                      },
+                      "trait": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "rs",
+                      "gene",
+                      "trait",
+                      "reported_allele",
+                      "raf",
+                      "or_beta",
+                      "p",
+                      "pmid",
+                      "study"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "locus": {
+                  "description": "accession:position, followed by :ref>alt when both alleles are known, e.g. \"NC_000019.10:44908684:T>C\".",
+                  "type": "string"
+                },
+                "rs": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "locus",
+                "calls"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "samples",
+          "variants"
+        ],
+        "type": "object"
+      },
+      "scope": "variants:read"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "algorithm_name": {
+            "description": "The algorithm to run, by name, from list_algorithms.",
+            "type": "string"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Algorithm parameters matching the algorithm's input_schema (call get_algorithm first to read it). Parameters only — do NOT put sample references here; use the sample_id parameter."
+          },
+          "sample_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Wallet sample_id (from list_samples) to run the algorithm over. Ownership-checked and translated to the internal sample reference. Omit for parameter-only algorithms."
+          }
+        },
+        "required": [
+          "algorithm_name"
+        ],
+        "type": "object"
+      },
+      "name": "schedule_run",
+      "output_schema": {
+        "description": "A run that was just scheduled.",
+        "properties": {
+          "run_id": {
+            "description": "Pass this to get_run to poll.",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "run_id",
+          "status"
+        ],
+        "type": "object"
+      },
+      "scope": "runs:write"
+    }
+  ]
+}

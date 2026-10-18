@@ -9,7 +9,7 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, Implementation, TextContent
 
 from wallet_example.config import Settings
-from wallet_example.contract import LIST_SAMPLES_TOOL, SampleRecord
+from wallet_example.contract import LIST_SAMPLES_TOOL, ListSamplesResult, SampleRecord
 from wallet_example.oauth import OAuthError, WalletOAuth
 from wallet_example.sessions import Session
 
@@ -111,5 +111,5 @@ async def list_samples(
         text = " ".join(c.text for c in result.content if isinstance(c, TextContent))
         raise WalletError(text or "Haplotype Wallet returned an error.")
     # A tool that returns a list wraps it as {"result": [...]} in `structuredContent`.
-    structured = cast(dict[str, list[SampleRecord]], result.structured_content or {})
+    structured = cast(ListSamplesResult, result.structured_content or {})
     return structured.get("result", [])
