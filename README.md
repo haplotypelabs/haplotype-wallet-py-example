@@ -154,7 +154,9 @@ scripts/        generate_contract.py, which writes contract.py
 tests/          unit tests with a fake authorization server
 ```
 
-To restyle the button, replace `src/wallet_example/static/connect-button.svg`.
+The button, `src/wallet_example/static/connect-button.svg`, is the light version from
+https://www.haplotype.ai/developers/connect-button/, which also has the dark version and
+the rules for using it.
 
 ## Wallet contract
 

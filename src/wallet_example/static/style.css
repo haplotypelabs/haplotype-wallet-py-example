@@ -68,7 +68,7 @@ h2 { margin: 28px 0 10px; font-size: 13px; font-weight: 600; color: var(--muted)
 .muted { color: var(--muted); }
 .fine { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
 
-.connect { display: inline-block; border-radius: 22px; }
+.connect { display: inline-block; border-radius: 8px; }
 .connect img { display: block; }
 .connect:focus-visible { outline: 3px solid #93c5fd; outline-offset: 3px; }
 
