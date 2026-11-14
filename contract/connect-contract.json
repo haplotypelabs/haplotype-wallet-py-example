@@ -92,6 +92,7 @@
     "list_algorithms",
     "list_gwas_associations",
     "list_pgs_categories",
+    "list_reports",
     "lookup_clingen",
     "lookup_cpic",
     "lookup_variant_references",
@@ -112,6 +113,7 @@
       "name": "Read genotypes",
       "slug": "variants:read",
       "tools": [
+        "get_report",
         "query_variants"
       ]
     },
@@ -135,6 +137,59 @@
     }
   ],
   "tools": [
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "report": {
+            "description": "Report name, exactly as list_reports gives it.",
+            "type": "string"
+          },
+          "sample_id": {
+            "description": "The sample identifier (e.g. \"ABCDEFGHIJ001\") from list_samples.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "report",
+          "sample_id"
+        ],
+        "type": "object"
+      },
+      "name": "get_report",
+      "output_schema": {
+        "description": "One rendered report.",
+        "properties": {
+          "content": {
+            "additionalProperties": true,
+            "description": "The report's JSON version, as the template wrote it.",
+            "type": "object"
+          },
+          "formats": {
+            "description": "Formats the user can open in the Wallet chat.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "report": {
+            "type": "string"
+          },
+          "sample_id": {
+            "description": "Wallet sample_id it was made from.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "report",
+          "sample_id",
+          "formats",
+          "content"
+        ],
+        "type": "object"
+      },
+      "scope": "variants:read"
+    },
     {
       "input_schema": {
         "additionalProperties": false,
@@ -1472,6 +1527,12 @@
           },
           "query_type": {
             "description": "The type of variant query. \"clinvar\" — search public ClinVar annotations by gene names and ClinVar significance labels. \"hgvs\" — look up a specific variant by HGVS notation (e.g. \"NC_000013.11:g.32356461T>G\"). \"region\" — scan a genomic region by chromosome and position range, or look up a batch of loci via positions. \"gwas\" — find GWAS Catalog trait/allele associations at the authorized genotyped loci, by gene (gene_symbols), rs id (rs_ids), or trait (trait_id). Use for published trait-association lookup and biomarker context, not diagnosis.",
+            "enum": [
+              "clinvar",
+              "hgvs",
+              "region",
+              "gwas"
+            ],
             "type": "string"
           },
           "rs_ids": {
