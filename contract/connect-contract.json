@@ -39,9 +39,9 @@
         "retryable": false
       },
       {
-        "action": "Check the ID. List the user's samples or runs again.",
+        "action": "Check the ID. List the user's samples, runs or requests again.",
         "code": "not_found",
-        "meaning": "The sample, run or algorithm does not exist or is not the user's.",
+        "meaning": "The sample, run, algorithm or biobank request does not exist or is not the user's, or the tool is not available to this user.",
         "retryable": false
       },
       {
@@ -53,7 +53,7 @@
       {
         "action": "Wait, then retry.",
         "code": "rate_limited",
-        "meaning": "Too many calls of this kind in a short time.",
+        "meaning": "Too many calls of this kind in a short time, or, for `submit_biobank_request`, too many open requests.",
         "retryable": true
       },
       {
@@ -90,8 +90,11 @@
   "open_tools": [
     "get_algorithm",
     "list_algorithms",
+    "list_brava_associations",
+    "list_brava_traits",
     "list_gwas_associations",
     "list_pgs_categories",
+    "list_reports",
     "lookup_clingen",
     "lookup_cpic",
     "lookup_variant_references",
@@ -112,6 +115,7 @@
       "name": "Read genotypes",
       "slug": "variants:read",
       "tools": [
+        "get_report",
         "query_variants"
       ]
     },
@@ -120,21 +124,271 @@
       "name": "Read scores and runs",
       "slug": "scores:read",
       "tools": [
+        "get_biobank_request",
         "get_run",
+        "list_biobank_requests",
         "list_member_pgs_scores",
         "list_runs"
       ]
     },
     {
-      "description": "Start new analyses on your genotypes",
+      "description": "Start new analyses on your genotypes and send questions to biobanks",
       "name": "Start analyses",
       "slug": "runs:write",
       "tools": [
-        "schedule_run"
+        "schedule_run",
+        "submit_biobank_request"
       ]
     }
   ],
   "tools": [
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "description": "The request_id from submit_biobank_request or list_biobank_requests.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id"
+        ],
+        "type": "object"
+      },
+      "name": "get_biobank_request",
+      "output_schema": {
+        "description": "One biobank request, with its answer once there is one.",
+        "properties": {
+          "answer": {
+            "description": "Present only when status is answered.",
+            "properties": {
+              "acknowledgment": {
+                "description": "Credit the biobank requires wherever these results are shown or shared. Include it with them.",
+                "type": "string"
+              },
+              "data_release": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The biobank data release the query ran on."
+              },
+              "summary": {
+                "description": "What the results show, with caveats. Relay the caveats.",
+                "type": "string"
+              },
+              "table": {
+                "anyOf": [
+                  {
+                    "description": "Aggregate results exported from the biobank.",
+                    "properties": {
+                      "columns": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "rows": {
+                        "description": "One list per row, in column order. A count can be a string such as \"≤20\": the biobank does not allow publishing counts from 1 to 20.",
+                        "items": {
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "type": "array"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "columns",
+                      "rows"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "summary",
+              "data_release",
+              "acknowledgment",
+              "table"
+            ],
+            "type": "object"
+          },
+          "answered_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it was answered or declined. Null while open."
+          },
+          "biobank": {
+            "description": "all_of_us, the All of Us program.",
+            "type": "string"
+          },
+          "conditions": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decline_reason": {
+            "description": "Present only when status is declined.",
+            "type": "string"
+          },
+          "genes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "description": "Where the request stands. Before an answer exists it says so; never present an open request as an empty result.",
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "request_id": {
+            "description": "Pass this to get_biobank_request.",
+            "type": "string"
+          },
+          "status": {
+            "description": "queued, then in_progress while a person runs the query, then answered or declined.",
+            "enum": [
+              "queued",
+              "in_progress",
+              "answered",
+              "declined"
+            ],
+            "type": "string"
+          },
+          "submitted_at": {
+            "type": "string"
+          },
+          "variants": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "request_id",
+          "biobank",
+          "status",
+          "question",
+          "submitted_at",
+          "answered_at",
+          "variants",
+          "genes",
+          "conditions",
+          "message"
+        ],
+        "type": "object"
+      },
+      "scope": "scores:read"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "report": {
+            "description": "Report name, exactly as list_reports gives it.",
+            "type": "string"
+          },
+          "sample_id": {
+            "description": "The sample identifier (e.g. \"ABCDEFGHIJ001\") from list_samples.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "report",
+          "sample_id"
+        ],
+        "type": "object"
+      },
+      "name": "get_report",
+      "output_schema": {
+        "description": "One rendered report.",
+        "properties": {
+          "content": {
+            "additionalProperties": true,
+            "description": "The report's JSON version, as the template wrote it.",
+            "type": "object"
+          },
+          "formats": {
+            "description": "Formats the user can open in the Wallet chat.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "report": {
+            "type": "string"
+          },
+          "sample_id": {
+            "description": "Wallet sample_id it was made from.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "report",
+          "sample_id",
+          "formats",
+          "content"
+        ],
+        "type": "object"
+      },
+      "scope": "variants:read"
+    },
     {
       "input_schema": {
         "additionalProperties": false,
@@ -826,6 +1080,76 @@
         "properties": {},
         "type": "object"
       },
+      "name": "list_biobank_requests",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "description": "A biobank request, without its answer.",
+              "properties": {
+                "answered_at": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "When it was answered or declined. Null while open."
+                },
+                "biobank": {
+                  "description": "all_of_us, the All of Us program.",
+                  "type": "string"
+                },
+                "question": {
+                  "type": "string"
+                },
+                "request_id": {
+                  "description": "Pass this to get_biobank_request.",
+                  "type": "string"
+                },
+                "status": {
+                  "description": "queued, then in_progress while a person runs the query, then answered or declined.",
+                  "enum": [
+                    "queued",
+                    "in_progress",
+                    "answered",
+                    "declined"
+                  ],
+                  "type": "string"
+                },
+                "submitted_at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "request_id",
+                "biobank",
+                "status",
+                "question",
+                "submitted_at",
+                "answered_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object",
+        "x-fastmcp-wrap-result": true
+      },
+      "scope": "scores:read"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
       "name": "list_member_pgs_scores",
       "output_schema": {
         "properties": {
@@ -1443,6 +1767,11 @@
             "default": null,
             "description": "One or two sentences on what the user is trying to learn and why this query serves it, under 400 characters. Describe the goal in general terms (e.g. \"Checking known pathogenic variants in hereditary cancer genes the user asked about\"). Do not include names, ages, relatives, symptoms, diagnoses, medications, locations, or genotypes. Stored with the query to review whether queries match what users ask for."
           },
+          "limit": {
+            "default": 1000,
+            "description": "Only used when query_type is \"brava\": how many of the most significant matching BRaVa variants to check (default and max 1000).",
+            "type": "integer"
+          },
           "p_value_max": {
             "anyOf": [
               {
@@ -1453,7 +1782,7 @@
               }
             ],
             "default": null,
-            "description": "Maximum association p-value (e.g. 5e-8 for genome-wide significance). Only used when query_type is \"gwas\"."
+            "description": "Maximum association p-value (e.g. 5e-8 for genome-wide significance). Only used when query_type is \"gwas\" or \"brava\"."
           },
           "positions": {
             "anyOf": [
@@ -1471,7 +1800,14 @@
             "description": "Batch of loci for query_type \"region\", up to 20 per call, each \"<chromosome>:<position>\" or \"<chromosome>:<start>-<end>\" (e.g. [\"chr4:67031670\", \"chr5:103743441-103743500\"]). Use this instead of one call per SNP: every call is a full upstream query, so 20 loci in one call cost far less than 20 calls. Takes precedence over chromosome/start/end."
           },
           "query_type": {
-            "description": "The type of variant query. \"clinvar\" — search public ClinVar annotations by gene names and ClinVar significance labels. \"hgvs\" — look up a specific variant by HGVS notation (e.g. \"NC_000013.11:g.32356461T>G\"). \"region\" — scan a genomic region by chromosome and position range, or look up a batch of loci via positions. \"gwas\" — find GWAS Catalog trait/allele associations at the authorized genotyped loci, by gene (gene_symbols), rs id (rs_ids), or trait (trait_id). Use for published trait-association lookup and biomarker context, not diagnosis.",
+            "description": "The type of variant query. \"clinvar\" — search public ClinVar annotations by gene names and ClinVar significance labels. \"hgvs\" — look up a specific variant by HGVS notation (e.g. \"NC_000013.11:g.32356461T>G\"). \"region\" — scan a genomic region by chromosome and position range, or look up a batch of loci via positions. \"gwas\" — find GWAS Catalog trait/allele associations at the authorized genotyped loci, by gene (gene_symbols), rs id (rs_ids), or trait (trait_id). Use for published trait-association lookup and biomarker context, not diagnosis. \"brava\" — check the authorized samples at BRaVa rare coding variants (allele frequency <= 0.001, results with p <= 0.01). It takes the `limit` most significant BRaVa variants (default and max 1000) matching gene_symbols (first non-blank symbol), trait_id and p_value_max, and genotypes the samples there. A variant where every sample is called without the allele (dosage 0) is left out and counted in not_carried. A variant where no sample has a call is not reported at all: sparse genotype data (arrays, many imputed files) rarely covers variants this rare. So an empty result means none of the checked variants is called with the allele in the samples, not that the samples carry no BRaVa variant. Give both a gene and a trait for a focused question; list_brava_traits gives the trait codes. The filters only choose the variants: each returned variant comes with all its BRaVa associations, for every trait.",
+            "enum": [
+              "clinvar",
+              "hgvs",
+              "region",
+              "gwas",
+              "brava"
+            ],
             "type": "string"
           },
           "rs_ids": {
@@ -1523,7 +1859,7 @@
               }
             ],
             "default": null,
-            "description": "GWAS Catalog / EFO trait id (e.g. an EFO id) to filter associations. Only used when query_type is \"gwas\"."
+            "description": "GWAS Catalog / EFO trait id (e.g. an EFO id) to filter associations when query_type is \"gwas\". When query_type is \"brava\", a BRaVa trait code from list_brava_traits (e.g. \"LDLC\")."
           }
         },
         "required": [
@@ -1535,6 +1871,10 @@
       "output_schema": {
         "description": "Observed variants at the queried loci, with public annotations.",
         "properties": {
+          "not_carried": {
+            "description": "brava queries only: checked BRaVa variants where every sample is called without the allele (dosage 0). They are left out of `variants`. Variants where no sample has a call are not counted or reported.",
+            "type": "integer"
+          },
           "samples": {
             "additionalProperties": {
               "type": "string"
@@ -1570,11 +1910,136 @@
             "items": {
               "description": "One variant locus, with the genotype calls observed at it.",
               "properties": {
+                "allele": {
+                  "description": "The one alternate allele `calls` counts, as ref>alt, e.g. \"T>C\". Present when the result is pinned to one allele: brava and clinvar queries, and any result whose target named its allele. Two entries can share a locus with different alleles.",
+                  "type": "string"
+                },
+                "brava": {
+                  "description": "Present only when BRaVa has results for an allele at this locus.",
+                  "items": {
+                    "description": "A BRaVa rare-variant association for one allele at the locus.",
+                    "properties": {
+                      "allele": {
+                        "description": "The allele BRaVa tested, as ref>alt, e.g. \"G>A\". When the entry has `allele`, the annotation matching it is the one the dosage counts. Otherwise the dosage counts any alternate allele of the record.",
+                        "type": "string"
+                      },
+                      "beta": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Effect size."
+                      },
+                      "citation": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "URL of the BRaVa publication to cite."
+                      },
+                      "n": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Sample size."
+                      },
+                      "n_cases": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Cases. Null for quantitative traits."
+                      },
+                      "p": {
+                        "description": "Association p-value.",
+                        "type": "number"
+                      },
+                      "release": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The BRaVa release."
+                      },
+                      "se": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "source": {
+                        "description": "Always \"BRaVa\".",
+                        "type": "string"
+                      },
+                      "trait": {
+                        "description": "The BRaVa trait an association belongs to.",
+                        "properties": {
+                          "code": {
+                            "description": "Trait code, e.g. \"LDLC\". Pass it as a trait filter.",
+                            "type": "string"
+                          },
+                          "kind": {
+                            "description": "\"binary\" (case/control) or \"quantitative\" (a measurement, e.g. LDL cholesterol).",
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "name",
+                          "kind"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "trait",
+                      "allele",
+                      "beta",
+                      "se",
+                      "p",
+                      "n",
+                      "n_cases",
+                      "source",
+                      "release",
+                      "citation"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
                 "calls": {
                   "additionalProperties": {
                     "type": "integer"
                   },
-                  "description": "Dosage per sample, keyed like `samples`: 0 absent, 1 one alternate allele, 2 two. A sample with no call at the locus is left out.",
+                  "description": "Dosage per sample, keyed like `samples`: 0 means the sample was genotyped here and does not carry the allele, 1 one copy, 2 two. A sample with no call at the locus is left out. With `allele` or `query`, the dosage counts that allele only. Without them (region and gwas queries) it counts any alternate allele of the record.",
                   "type": "object"
                 },
                 "clinvar": {
@@ -1700,7 +2165,11 @@
                   "type": "array"
                 },
                 "locus": {
-                  "description": "accession:position, followed by :ref>alt when both alleles are known, e.g. \"NC_000019.10:44908684:T>C\".",
+                  "description": "accession:position, followed by :ref>alt when both alleles are known, e.g. \"NC_000019.10:44908684:T>C\". A record with several alternate alleles lists them all, e.g. \"...:T>C,G\".",
+                  "type": "string"
+                },
+                "query": {
+                  "description": "hgvs queries only: the HGVS string this entry answers. `calls` counts the allele it names.",
                   "type": "string"
                 },
                 "rs": {
@@ -1785,6 +2254,97 @@
         "required": [
           "run_id",
           "status"
+        ],
+        "type": "object"
+      },
+      "scope": "runs:write"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "conditions": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional: condition names it is about. Up to 20."
+          },
+          "genes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional: gene symbols it is about. Up to 20."
+          },
+          "question": {
+            "description": "One question about the All of Us cohort, in plain words, for example 'Among participants carrying rs429358 C, how many have a diagnosis of Alzheimer disease?'. Ask about the cohort, never about the user. No names, contact details or genotypes. Up to 1,000 characters; longer text is cut.",
+            "type": "string"
+          },
+          "variants": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional: the variants it is about, as rsIDs or HGVS. Up to 20."
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "type": "object"
+      },
+      "name": "submit_biobank_request",
+      "output_schema": {
+        "description": "A question that was queued, or the open request it duplicates.",
+        "properties": {
+          "message": {
+            "description": "What happens next. Tell the user in your own words.",
+            "type": "string"
+          },
+          "request_id": {
+            "description": "Pass this to get_biobank_request to check on it.",
+            "type": "string"
+          },
+          "status": {
+            "description": "queued, then in_progress while a person runs the query, then answered or declined.",
+            "enum": [
+              "queued",
+              "in_progress",
+              "answered",
+              "declined"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "status",
+          "message"
         ],
         "type": "object"
       },
